@@ -30,7 +30,7 @@ contract MultiSigWallet {
      * @param _quorum Number of minimal approver who have to valid one transaction
      */
     constructor(address[] memory _approvers, uint _quorum) {
-        require(_approvers.length > _quorum, "Number of addresses have to be greater than quorum");
+        require(_approvers.length >= _quorum, "Number of addresses have to be greater than quorum");
         approvers = _approvers;
         quorum = _quorum;
     }
