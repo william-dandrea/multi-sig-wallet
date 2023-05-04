@@ -16,7 +16,7 @@ contract MultiSigWallet {
         uint id;                    // id of the transfert (should be unique)
         uint amount;                // ETH amount of the transaction
         address payable to;         // Destination adress of the transfert
-        uint approvals;             // Number of approvers who already validates the transaction
+        address[] validators;       // List of approvers who already validates the transaction
         bool is_already_sent;       // Is the transaction already send ?
     }
 
@@ -30,12 +30,22 @@ contract MultiSigWallet {
      * @param _quorum Number of minimal approver who have to valid one transaction
      */
     constructor(address[] memory _approvers, uint _quorum) {
+        require(_approvers.length > _quorum, "Number of addresses have to be greater than quorum");
         approvers = _approvers;
         quorum = _quorum;
     }
 
+    /**
+     * Send ether to the smart contract (just need to provide the adress)
+     */
+    receive() external payable {}
+
     function getApprovers() external view returns(address[] memory) {
         return approvers;
+    }
+
+    function getTransfers() external view returns(Transfer[] memory) {
+        return transfers;
     }
 
     /**
@@ -43,14 +53,51 @@ contract MultiSigWallet {
      * @param _to address of the receiver
      * @param _amount amount of ETH you want to send to the receiver
      */
-    function createTransfert(address payable _to, uint _amount) external {
-        Transfer memory transfert = Transfer(
+    function createTransfert(address payable _to, uint _amount) external isApprover() {
+
+        Transfer memory newTransfer = Transfer(
             transfers.length,
             _amount,
             _to,
-            0,
+            new address[](0),
             false
         );
-        transfers.push(transfert);
+        transfers.push(newTransfer);
+    }
+
+    /**
+     * A approver can call this method for approoving a specific transfert
+     * @param _transfertId id of the transation in transfers array
+     */
+    function approveTransfert(uint _transfertId) external isApprover() {
+        address sender = msg.sender;
+
+        require(_transfertId >= 0 && _transfertId < transfers.length, "This transaction doesn't exist");
+        require(transfers[_transfertId].is_already_sent == false, "Transfer already done");
+
+        transfers[_transfertId].validators.push(sender);
+
+        if (transfers[_transfertId].validators.length >= quorum) {
+            // We can approove transaction
+            transfers[_transfertId].is_already_sent = true;
+
+            address payable to = transfers[_transfertId].to;
+            to.transfer(transfers[_transfertId].amount);
+        }
+    }
+
+    /**
+     * Check if sender is an approover or not
+     */
+    modifier isApprover() {
+        bool allowed = false;
+        for (uint i = 0; i < approvers.length; i++) {
+            if (approvers[i] == msg.sender) {
+                allowed = true;
+                break;
+            }
+        }
+        require(allowed == true, "Access denied");
+        _;
     }
 }
